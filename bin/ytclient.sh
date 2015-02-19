@@ -31,11 +31,14 @@ helpmsg()
 	echo ""
 	echo "commands:"
 	echo ""
-	echo "- login <username> <password>"
-	echo "	"
+	echo "- login <username> [password]"
+	echo "	login to YouTrack. If password is not provided it will be asked"
 	echo ""
-	echo "- issue get [-m <max_issues_to_return>] [query]"
-	echo "	print a list of issues"
+	echo "- logout"
+	echo "	logout from YouTrack."
+	echo ""
+	echo "- issue get [-i] [-m <max_issues_to_return>] [query]"
+	echo "	print a list of issues, or a list of issue id if the switch -i is set"
 	echo ""
 	echo "- issue field <issue_id> <field_name> [newValue]"
 	echo "	print the value of the field <field_name> of the issue <issue_id>, or set the field with [newValue]"
@@ -45,13 +48,29 @@ helpmsg()
 	echo ""
 }
 
+ytc_logout()
+{
+	if [ -f cookie.txt ]
+	then
+		rm -f cookie.txt
+	fi
+}
+
 ytc_login()
 {
-	test -z "$2" && return 2
+	test -z "$1" && return 2
+	
+	username="$1"
+	password="$2"
+	
+	if [ -z "$password" ]
+	then
+		read -s -p 'password: ' password
+	fi
 	
 	if echo "$BIN_HTTP" | grep "^curl" > /dev/null
 	then
-		if $BIN_HTTP -d "login=$1&password=$2" "$URL_REST_BASE/user/login" | grep "<login>ok</login>" > /dev/null
+		if $BIN_HTTP -d "login=$username&password=$password" "$URL_REST_BASE/user/login" | grep "<login>ok</login>" > /dev/null
 		then
 			echo "logged in"
 			return 0
@@ -66,18 +85,25 @@ ytc_login()
 
 ytc_issue_get()
 {
-	while getopts ":m:" opt
+	while getopts ":m:i" opt
 	do
 		case $opt in
 		m)
 			max="max=$OPTARG&"
-			shift 2
+		;;
+		i)
+			ids="true"
 		;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
 		;;
 		esac
 	done
+	
+	# shifts
+	test -z "$max" || shift 2
+	test -z "$ids" || shift
+	
 	filters="$@"
 	if [ ! -z "$filters" ]
 	then
@@ -85,7 +111,18 @@ ytc_issue_get()
 		filters_querystring="filter=$filters_urlencoded"
 	fi
 	querystring=`echo "$max$filters_querystring" | sed 's/&$//g'`
-	$BIN_HTTP "$URL_REST_BASE/issue?$querystring"  |  sed 's/<\([A-Za-z0-9]\)/\n<\1/g' | sed 's/^<issue /\n<issue /g' | sed 's#</field></issue>#</field>\n</issue>#g'
+	
+	if [ -z "$ids" ]
+	then
+		$BIN_HTTP "$URL_REST_BASE/issue?$querystring"  |  sed 's/<\([A-Za-z0-9]\)/\n<\1/g' | sed 's/^<issue /\n<issue /g' | sed 's#</field></issue>#</field>\n</issue>#g'
+		RET=$?
+	else
+		$BIN_HTTP "$URL_REST_BASE/issue?$querystring"  |  sed 's/<\([A-Za-z0-9]\)/\n<\1/g' | sed 's/^<issue /\n<issue /g' | sed 's#</field></issue>#</field>\n</issue>#g' | grep '<issue id="' | sed -e 's/^<issue id="//g' -e 's/">$//g'
+		RET=$?
+	fi
+	
+	echo ""
+	return $RET
 }
 
 ytc_issue_execute()
@@ -131,6 +168,13 @@ if [ "$1" = "login" ]
 then
 	shift
 	ytc_login $@
+	exit $?
+fi
+
+if [ "$1" = "logout" ]
+then
+	shift
+	ytc_logout $@
 	exit $?
 fi
 
