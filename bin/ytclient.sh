@@ -117,7 +117,7 @@ ytc_issue_get()
 		$BIN_HTTP "$URL_REST_BASE/issue?$querystring"  |  sed 's/<\([A-Za-z0-9]\)/\n<\1/g' | sed 's/^<issue /\n<issue /g' | sed 's#</field></issue>#</field>\n</issue>#g'
 		RET=$?
 	else
-		$BIN_HTTP "$URL_REST_BASE/issue?$querystring"  |  sed 's/<\([A-Za-z0-9]\)/\n<\1/g' | sed 's/^<issue /\n<issue /g' | sed 's#</field></issue>#</field>\n</issue>#g' | grep '<issue id="' | sed -e 's/^<issue id="//g' -e 's/">$//g'
+		$BIN_HTTP "$URL_REST_BASE/issue?$querystring"  |  sed 's/<\([A-Za-z0-9]\)/\n<\1/g' | sed 's/^<issue /\n<issue /g' | sed 's#</field></issue>#</field>\n</issue>#g' | grep '<issue id="' | sed -e 's/^<issue id="\([a-zA-Z0-9-]*\)".*">$/\1/g'
 		RET=$?
 	fi
 	
@@ -167,14 +167,14 @@ ytc_issue_manage_field()
 if [ "$1" = "login" ]
 then
 	shift
-	ytc_login $@
+	ytc_login "$1" "$2"
 	exit $?
 fi
 
 if [ "$1" = "logout" ]
 then
 	shift
-	ytc_logout $@
+	ytc_logout
 	exit $?
 fi
 
@@ -185,21 +185,21 @@ then
 	if [ "$1" = "get" ]
 	then
 		shift
-		ytc_issue_get $@
+		ytc_issue_get "$1" "$2" "$3" "$4"
 		exit $?
 	fi
 	
 	if [ "$1" = "field" ]
 	then
 		shift
-		ytc_issue_manage_field $@
+		ytc_issue_manage_field "$1" "$2" "$3"
 		exit $?
 	fi
 	
 	if [ "$1" = "exec" ]
 	then
 		shift
-		ytc_issue_execute $@
+		ytc_issue_execute "$1" "$2"
 		exit $?
 	fi
 fi
